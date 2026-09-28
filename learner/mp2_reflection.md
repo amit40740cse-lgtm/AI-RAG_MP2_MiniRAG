@@ -1,25 +1,17 @@
 # MP2 Reflection
 
 ## What worked
-(One specific thing that worked — a chunking choice, a prompt detail, etc.)
 
-*Chunking choice was a main differentiator in my approach. With the implementation of Section based chunking, I was able to generate more relevant responses. Facts matched was also improved as the context within chunks was intact and retrieval was more contextual*
+Section-based chunking worked best for me. I first tried a sliding-window approach, but some related information was split between chunks. With section-based chunking, the text stayed with its section heading, so the retrieved context was more useful and the answers became more relevant.
 
 ## What didn't work
-(One specific failure mode you hit. Did chunks get too small? Did retrieval
-pull the wrong section? Did the LLM hallucinate?)
 
-*I started with Sliding Window chunking approach as it was easy to implement but it didn't work as the context was split into different chunks due to which generated answer and facts matching were impacted. So I changed the approach and used section based chunking which improved the results and also helped in attaching relevant section headers*
+The sliding-window approach was easy to start with, but it did not keep related context together. I also learned that retrieving the correct story does not always mean the answer includes all the expected facts. In my saved validation run, the expected source matched for all questions, but some fact-match scores were low, including 0/6 for the Speckled Band question. The saved learner results are from my earlier questions, before I updated them, so I still need to validate the new questions.
 
 ## What I'd change
-(One thing you'd do differently with another 5 hours.)
 
-*If I get additional time to further improve the results, I could try different approaches to improve the retrieval context by levearging techniques like Query rewriting, Query Decomposition through LLM and Hybrid retrieval using both Dense (Semantic) and Sparse (Keyword based)search methods.*
+With five more hours, I would first rerun validation with my updated questions and look at the retrieved chunks for any answers that miss facts. After that, I would try query rewriting, query decomposition with an LLM, and hybrid retrieval using both dense semantic search and sparse keyword search. I would compare the results to see which changes actually help.
 
 ## One surprise
-(Anything from the build that genuinely surprised you. Could be technical —
-"text-embedding-3-small was way better than I expected on rare names" —
-or pedagogical — "I didn't realise how much hybrid retrieval was helping
-until I tried dense-only here.")
 
-*With the implementation of RAG approach where context is provided to LLM along with user question, I was surprised to see relevant responses without writing complex system and user prompt. We need not be very elaborate and detailed in instructions to LLM which saves time, reduces iterations while maintaining the quality in output.*
+I was surprised that the system could give relevant answers with a simple prompt when I provided useful context with the question. I did not need very long instructions for the LLM. At the same time, the validation showed me that a relevant answer does not always include every expected fact, so checking the retrieved context and the final answer is still important.
