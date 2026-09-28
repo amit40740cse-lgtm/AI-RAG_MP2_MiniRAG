@@ -27,14 +27,14 @@ from dotenv import load_dotenv
 
 # ─── Configuration ──────────────────────────────────────────────────────
 
-CORPUS_DIR        = Path(__file__).parent / "corpus"
-DATA_DIR          = Path(__file__).parent / "data"
-COLLECTION_NAME   = "mp2_sherlock"
-EMBEDDING_MODEL   = "text-embedding-3-small"
-EMBEDDING_DIM     = 1536
-CHAT_MODEL        = "gpt-4o-mini"
-TARGET_CHUNK_SIZE = 500   # characters
-CHUNK_OVERLAP     = 80    # characters
+STORY_FOLDER       = Path(__file__).parent / "corpus"
+QUESTION_FOLDER    = Path(__file__).parent / "data"
+VECTOR_STORE_NAME  = "mp2_sherlock"
+TEXT_VECTOR_MODEL  = "text-embedding-3-small"
+VECTOR_SIZE        = 1536
+GENERATION_MODEL   = "gpt-4o-mini"
+MAX_CHUNK_CHARS    = 500   # characters
+CHUNK_GAP          = 80    # characters
 
 load_dotenv()
 
@@ -47,6 +47,7 @@ if not OPENAI_API_KEY:
 if not QDRANT_URL:
     raise RuntimeError("Set QDRANT_URL in learner/.env before running the app.")
 
+
 openai_options = {"api_key": OPENAI_API_KEY}
 if OPENAI_BASE_URL:
     openai_options["base_url"] = OPENAI_BASE_URL
@@ -55,6 +56,7 @@ qdrant = QdrantClient(
     url=QDRANT_URL,
     api_key=os.environ.get("QDRANT_API_KEY"),
 )
+
 
 
 # ─── Step 1: Load the corpus ────────────────────────────────────────────
@@ -70,7 +72,7 @@ def load_corpus(corpus_dir: Path) -> list[dict[str, Any]]:
       - For each file, read its text and extract the first non-empty line as title
       - Return the list of doc dicts   
     """
-    docs: list[dict[str, Any]] = []
+    story_docs: list[dict[str, Any]] = []
     # Check for text files in the corpus directory and read them
     for path in sorted(corpus_dir.glob("*.txt")):
         text = path.read_text(encoding="utf-8")
@@ -79,12 +81,12 @@ def load_corpus(corpus_dir: Path) -> list[dict[str, Any]]:
             (line.strip() for line in lines if line.strip()),
             path.stem.replace("_", " ").replace("-", " ").title(),
         )
-        docs.append({
+        story_docs.append({
             "source": path.name,
             "title": title,
             "text": text.strip(),
         })
-    return docs
+    return story_docs
 
 
 # ─── Step 2: Chunk each document ────────────────────────────────────────
@@ -116,9 +118,9 @@ def chunk_document(doc: dict[str, Any]) -> list[dict[str, Any]]:
     # Split into paragraphs based on double newlines
     paragraphs = re.split(r'\n\n+', text)
     
-    chunks = []
+    chunk_list = []
     current_section = title
-    current_chunk = ""
+    active_chunk = ""
     
     for para in paragraphs:
         para = para.strip()
@@ -131,41 +133,41 @@ def chunk_document(doc: dict[str, Any]) -> list[dict[str, Any]]:
 
         if is_section_header:
             
-            if current_chunk.strip():
-                chunks.append({
+            if active_chunk.strip():
+                chunk_list.append({
                     "source": source,
                     "title": title,
                     "section": current_section,
-                    "text": current_chunk.strip()
+                    "text": active_chunk.strip()
                 })
-                current_chunk = ""
+                active_chunk = ""
             current_section = para
         else:
             # Adding paragraph to current chunk
-            test_chunk = current_chunk + "\n\n" + para if current_chunk else para
+            candidate_chunk = active_chunk + "\n\n" + para if active_chunk else para
             
-            if len(test_chunk) > TARGET_CHUNK_SIZE and current_chunk:
+            if len(candidate_chunk) > MAX_CHUNK_CHARS and active_chunk:
                 # Checking for chunk size and saving the current chunk if it exceeds the target size
-                chunks.append({
+                chunk_list.append({
                     "source": source,
                     "title": title,
                     "section": current_section,
-                    "text": current_chunk.strip()
+                    "text": active_chunk.strip()
                 })
-                current_chunk = para
+                active_chunk = para
             else:
-                current_chunk = test_chunk
+                active_chunk = candidate_chunk
     
     # Saving the last chunk
-    if current_chunk.strip():
-        chunks.append({
+    if active_chunk.strip():
+        chunk_list.append({
             "source": source,
             "title": title,
             "section": current_section,
-            "text": current_chunk.strip()
+            "text": active_chunk.strip()
         })
     
-    return chunks
+    return chunk_list
 
 
 
@@ -186,7 +188,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         return []
 
     response = openai.embeddings.create(
-        model=EMBEDDING_MODEL,
+        model=TEXT_VECTOR_MODEL,
         input=texts,
     )
     return [item.embedding for item in response.data]
@@ -202,9 +204,9 @@ def setup_collection() -> None:
       - VectorParams with EMBEDDING_DIM and Distance.COSINE
     """
     qdrant.recreate_collection(
-        collection_name=COLLECTION_NAME,
+        collection_name=VECTOR_STORE_NAME,
         vectors_config=VectorParams(
-            size=EMBEDDING_DIM, 
+            size=VECTOR_SIZE, 
             distance=Distance.COSINE
             )
     )
@@ -225,10 +227,10 @@ def ingest_chunks(chunks: list[dict[str, Any]]) -> None:
         return
 
     texts = [chunk["text"] for chunk in chunks]
-    vectors = embed_texts(texts)
+    embedded_vectors = embed_texts(texts)
 
     points = []
-    for i, (chunk, vector) in enumerate(zip(chunks, vectors)):
+    for i, (chunk, vector) in enumerate(zip(chunks, embedded_vectors)):
         points.append(
             PointStruct(
                 id=str(uuid.uuid4()),
@@ -238,7 +240,7 @@ def ingest_chunks(chunks: list[dict[str, Any]]) -> None:
         )   
 
     qdrant.upsert(
-        collection_name=COLLECTION_NAME,
+        collection_name=VECTOR_STORE_NAME,
         wait=True,
         points=points,
     )
@@ -255,19 +257,19 @@ def retrieve(query: str, k: int = 3) -> list[dict[str, Any]]:
       - Return list of chunk dicts (include score for citations)
     """
     # TODO: your code here
-    query_embedding = embed_texts([query])[0]
+    query_vector = embed_texts([query])[0]
     hits = qdrant.query_points(
-        collection_name=COLLECTION_NAME,
-        query=query_embedding,
+        collection_name=VECTOR_STORE_NAME,
+        query=query_vector,
         limit=k,
     )
 
-    results: list[dict[str, Any]] = []
+    matched_chunks: list[dict[str, Any]] = []
     for hit in hits.points:
         payload = dict(hit.payload)
         payload["score"] = float(hit.score)
-        results.append(payload)
-    return results
+        matched_chunks.append(payload)
+    return matched_chunks
 
 
 # ─── Step 7: Generate the answer ────────────────────────────────────────
@@ -313,7 +315,7 @@ def answer(question: str, k: int = 3) -> dict[str, Any]:
     )
 
     response = openai.chat.completions.create(
-        model=CHAT_MODEL,
+        model=GENERATION_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message},

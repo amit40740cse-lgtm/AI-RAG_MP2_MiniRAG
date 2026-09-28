@@ -1,3 +1,5 @@
+Validation note: this file is stale relative to the current learner dataset. The learner questions in data/learner_questions.jsonl have been updated, so this validation log should be regenerated after QDRANT_URL is configured. The script currently aborts if QDRANT_URL is empty, so the same validation must be rerun in a configured Qdrant environment.
+
 Validating 2 questions from predefined_questions.jsonl…
 
   ✓ q1_red_headed_league_assistant
@@ -18,25 +20,25 @@ Validating 2 questions from predefined_questions.jsonl…
 
   Validating 3 questions from learner_questions.jsonl…
 
-  ✓ q1_blue_carbuncle_location_easy
-      Q: Where was the stolen Blue Carbuncle gem found embedded after Peterson brought the goose to his home?
+  ✓ q1_blue_carbuncle_goose_route
+      Q: How did the Blue Carbuncle end up in Henry Baker's Christmas goose, and who had hidden it there?
       Cited: 03_blue_carbuncle.txt
       Expected: 03_blue_carbuncle.txt
       Facts matched: 1/4
-      Latency: 2810ms
+      Latency: 2671ms
 
-  ✓ q2_engineer_thumb_escape_medium
-      Q: How did Victor Hatherley manage to escape from the crushing hydraulic press chamber, and what injury did he suffer?
+  ✓ q2_engineers_thumb_press_purpose
+      Q: What was the hydraulic press at Beechmoor really used for, and what clue revealed its purpose?
       Cited: 04_engineers_thumb.txt
       Expected: 04_engineers_thumb.txt
       Facts matched: 7/8
-      Latency: 2924ms
+      Latency: 3024ms
 
-  ✓ q3_scandal_bohemia_disguises_hard
-      Q: What two specific disguises did Sherlock Holmes adopt during his investigation of Irene Adler, and what vital discovery or event did he witness or engineer while wearing each?
+  ✓ q3_scandal_photo_hiding_place
+      Q: How did Holmes discover where Irene Adler had hidden the photograph of the King?
       Cited: 05_scandal_in_bohemia.txt
       Expected: 05_scandal_in_bohemia.txt
       Facts matched: 1/6
-      Latency: 3949ms
+      Latency: 2899ms
 
   Source-match: 3/3
